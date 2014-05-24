@@ -71,3 +71,5 @@ func BuildFrame(dst net.HardwareAddr, src net.HardwareAddr, tagging Tagging, eth
 	buf.Data[12+tagging+1] = ethertype[1]
 	return buf
 }
+
+type FrameFilter func(frame *FrameWithTime) bool

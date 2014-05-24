@@ -61,11 +61,16 @@ type bpfDev struct {
 	fd     *os.File
 	reader chan *FrameWithTime
 	writer chan *FrameBuf
+	filter FrameFilter
 }
 
-func NewDev(ifName string) (dev *bpfDev, err error) {
+// NewDev returns a handle to BPF device. ifName is the interface name to be
+// listened on, and frameFilter is used to determine whether a frame should be
+// passed into reading channel (Reader()).
+func NewDev(ifName string, frameFilter FrameFilter) (dev *bpfDev, err error) {
 	dev = new(bpfDev)
 	dev.name = ifName
+	dev.filter = frameFilter
 	dev.fd, err = getBpfFd()
 	if err != nil {
 		return nil, err
@@ -140,7 +145,11 @@ func (d bpfDev) readFrames(bufLen int) {
 			frame := getFrameWithTime(int(hdr.bh_caplen))
 			frame.Time = time.Unix(hdr.bh_tstamp.Unix())
 			copy(frame.Frame.Data, buf[frameStart:frameStart+int(hdr.bh_caplen)])
-			d.reader <- frame
+			if d.filter != nil && d.filter(frame) {
+				d.reader <- frame
+			} else {
+				frame.ReUse()
+			}
 			p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
 		}
 	}
