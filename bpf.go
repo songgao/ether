@@ -165,5 +165,6 @@ func (d bpfDev) writeFrames(mtu int) {
 		if n != len(buf.Data) || err != nil {
 			log.Printf("Writing frame may have failed. n: %d; len(frame): %d; err: %v\n", n, len(buf.Data), err)
 		}
+		buf.ReUse()
 	}
 }
