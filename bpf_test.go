@@ -8,14 +8,18 @@ import (
 )
 
 func TestNewDev(t *testing.T) {
-	_, err := NewDev("en0")
+	dev, err := NewDev("en0", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = dev.GetHardwareAddr()
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestReadFrame(t *testing.T) {
-	dev, err := NewDev("en0")
+	dev, err := NewDev("en0", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +33,7 @@ func TestReadFrame(t *testing.T) {
 }
 
 func TestWriteFrame(t *testing.T) {
-	dev, err := NewDev("en0")
+	dev, err := NewDev("en0", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

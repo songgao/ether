@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -58,6 +61,7 @@ func bpf_wordalign(x int) int {
 
 type bpfDev struct {
 	name   string
+	addr   net.HardwareAddr
 	fd     *os.File
 	reader chan *FrameWithTime
 	writer chan *FrameBuf
@@ -90,6 +94,10 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev *bpfDev, err error) {
 	if err != nil {
 		return nil, err
 	}
+	_, err = dev.GetHardwareAddr()
+	if err != nil {
+		return nil, err
+	}
 
 	go dev.readFrames(bufLen)
 	go dev.writeFrames(mtu)
@@ -97,11 +105,28 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev *bpfDev, err error) {
 	return
 }
 
-func (d bpfDev) Name() string {
+func (d *bpfDev) Name() string {
 	return d.name
 }
 
-func (d bpfDev) GetMTU() (int, error) {
+func (d *bpfDev) GetHardwareAddr() (net.HardwareAddr, error) {
+	if d.addr != nil {
+		return d.addr, nil
+	}
+	out, err := exec.Command("ifconfig", d.name).Output()
+	if err != nil {
+		return nil, err
+	}
+	str := string(out)
+	pos := strings.Index(str, "ether ")
+	if pos < 0 || pos+6+17 > len(str) {
+		return nil, errors.New("ether keyword not found in ifconfig output")
+	}
+	d.addr, err = net.ParseMAC(str[pos+6 : pos+6+17])
+	return d.addr, err
+}
+
+func (d *bpfDev) GetMTU() (int, error) {
 	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
 	if err != nil {
 		return -1, err
@@ -121,17 +146,17 @@ func (d bpfDev) GetMTU() (int, error) {
 }
 
 // Reader returns a channel for reading incoming frames.
-func (d bpfDev) Reader() <-chan *FrameWithTime {
+func (d *bpfDev) Reader() <-chan *FrameWithTime {
 	return d.reader
 }
 
 // Writer returns a channel for sending frames. Frames sent into the channel
 // have to be smaller than MTU, otherwise they are silently discarded.
-func (d bpfDev) Writer() chan<- *FrameBuf {
+func (d *bpfDev) Writer() chan<- *FrameBuf {
 	return d.writer
 }
 
-func (d bpfDev) readFrames(bufLen int) {
+func (d *bpfDev) readFrames(bufLen int) {
 	buf := make([]byte, bufLen)
 	for {
 		n, err := d.fd.Read(buf)
@@ -145,7 +170,7 @@ func (d bpfDev) readFrames(bufLen int) {
 			frame := getFrameWithTime(int(hdr.bh_caplen))
 			frame.Time = time.Unix(hdr.bh_tstamp.Unix())
 			copy(frame.Frame.Data, buf[frameStart:frameStart+int(hdr.bh_caplen)])
-			if d.filter != nil && d.filter(frame) {
+			if !equalMAC(frame.Frame.Data.Source(), d.addr) && (d.filter == nil || d.filter(frame)) {
 				d.reader <- frame
 			} else {
 				frame.ReUse()
@@ -155,7 +180,7 @@ func (d bpfDev) readFrames(bufLen int) {
 	}
 }
 
-func (d bpfDev) writeFrames(mtu int) {
+func (d *bpfDev) writeFrames(mtu int) {
 	for {
 		buf := <-d.writer
 		if len(buf.Data) > mtu {
