@@ -1,7 +1,5 @@
 package ether
 
-import "syscall"
-
 /*
  * From bpf.h:
  *
@@ -20,12 +18,8 @@ type bpf_hdr struct {
 	bh_hdrlen  uint16
 }
 
-type timeval struct {
-	syscall.Timeval32
-}
-
-func (t *timeval) Unix() (sec int64, nsec int64) {
-	return int64(t.Sec), int64(t.Usec) * 1000
+func (tv *timeval) Unix() (sec int64, nsec int64) {
+	return int64(tv.Sec), int64(tv.Usec) * 1000
 }
 
 const word_length = 4

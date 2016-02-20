@@ -1,4 +1,5 @@
 // +build darwin freebsd
+
 package ether
 
 import (
@@ -9,9 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 func getBpfFd() (file *os.File, err error) {
@@ -33,7 +35,7 @@ func ifReq(fd *os.File, ifName string) (err error) {
 		pad  [0x28 - 0x10]byte
 	}{}
 	copy(req.Name[:], ifName)
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd.Fd(), uintptr(syscall.BIOCSETIF), uintptr(unsafe.Pointer(&req)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCSETIF), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		err = errno
 		return err
@@ -43,12 +45,12 @@ func ifReq(fd *os.File, ifName string) (err error) {
 
 func ioCtl(fd *os.File) (buf_len int, err error) {
 	buf_len = 1
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd.Fd(), uintptr(syscall.BIOCIMMEDIATE), uintptr(unsafe.Pointer(&buf_len)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCIMMEDIATE), uintptr(unsafe.Pointer(&buf_len)))
 	if errno != 0 {
 		err = errno
 		return
 	}
-	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, fd.Fd(), uintptr(syscall.BIOCGBLEN), uintptr(unsafe.Pointer(&buf_len)))
+	_, _, errno = unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCGBLEN), uintptr(unsafe.Pointer(&buf_len)))
 	if errno != 0 {
 		err = errno
 	}
@@ -127,7 +129,7 @@ func (d *bpfDev) GetHardwareAddr() (net.HardwareAddr, error) {
 }
 
 func (d *bpfDev) GetMTU() (int, error) {
-	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
 		return -1, err
 	}
@@ -137,7 +139,7 @@ func (d *bpfDev) GetMTU() (int, error) {
 		pad  [0x28 - 0x10 - 0x4]byte
 	}{}
 	copy(req.Name[:], d.name)
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&req)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCGIFMTU), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		err = errno
 		return -1, err

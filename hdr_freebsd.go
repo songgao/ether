@@ -1,6 +1,6 @@
 package ether
 
-import "syscall"
+import "golang.org/x/sys/unix"
 
 /*
  * From bpf.h:
@@ -16,7 +16,7 @@ import "syscall"
  *
  */
 type bpf_hdr struct {
-	bh_tstamp  syscall.Timeval // 8 or 16 bytes depending on arch
+	bh_tstamp  unix.Timeval // 8 or 16 bytes depending on arch
 	bh_caplen  uint32
 	bh_datalen uint32
 	bh_hdrlen  uint16
