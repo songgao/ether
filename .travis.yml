@@ -1,0 +1,15 @@
+os:
+  - osx
+
+language: go
+
+go:
+  - 1.6
+  - tip
+
+install:
+  go get golang.org/x/sys/unix
+
+script: 
+  - ifconfig 
+  - sudo -E go test -v -dev=en0
