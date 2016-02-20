@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/songgao/ether.svg?branch=master)](https://travis-ci.org/songgao/ether)
+
 # ether
 ether is a go package for sending and receiving ethernet frames. Only BPF is implemented for now, so it only works on BSD-like systems at the time.
 
