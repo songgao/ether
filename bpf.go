@@ -5,7 +5,6 @@ package ether
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -65,44 +64,48 @@ type bpfDev struct {
 	name   string
 	addr   net.HardwareAddr
 	fd     *os.File
-	reader chan *FrameWithTime
-	writer chan *FrameBuf
 	filter FrameFilter
+	mtu    int
+
+	// bpf may return more than one frame per read() call
+	readBuf []byte
+	p       int
+	n       int
 }
 
 // NewDev returns a handle to BPF device. ifName is the interface name to be
 // listened on, and frameFilter is used to determine whether a frame should be
-// passed into reading channel (Reader()).
-func NewDev(ifName string, frameFilter FrameFilter) (dev *bpfDev, err error) {
-	dev = new(bpfDev)
-	dev.name = ifName
-	dev.filter = frameFilter
-	dev.fd, err = getBpfFd()
+// discarded when reading. Set it to nil to disable filtering.
+// TODO: use kernel for filtering
+func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
+	d := new(bpfDev)
+	d.name = ifName
+	d.filter = frameFilter
+	d.fd, err = getBpfFd()
 	if err != nil {
 		return nil, err
 	}
-	err = ifReq(dev.fd, ifName)
-	if err != nil {
-		return nil, err
-	}
-	dev.reader = make(chan *FrameWithTime, bufferSize)
-	dev.writer = make(chan *FrameBuf, bufferSize)
-
-	bufLen, err := ioCtl(dev.fd)
-	if err != nil {
-		return nil, err
-	}
-	mtu, err := dev.GetMTU()
-	if err != nil {
-		return nil, err
-	}
-	_, err = dev.GetHardwareAddr()
+	err = ifReq(d.fd, ifName)
 	if err != nil {
 		return nil, err
 	}
 
-	go dev.readFrames(bufLen)
-	go dev.writeFrames(mtu)
+	bufLen, err := ioCtl(d.fd)
+	if err != nil {
+		return nil, err
+	}
+	_, err = d.GetMTU()
+	if err != nil {
+		return nil, err
+	}
+	_, err = d.GetHardwareAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	d.readBuf = make([]byte, bufLen)
+
+	dev = d
 
 	return
 }
@@ -144,54 +147,54 @@ func (d *bpfDev) GetMTU() (int, error) {
 		err = errno
 		return -1, err
 	}
-	return int(req.Mtu), err
+	d.mtu = int(req.Mtu)
+	return d.mtu, err
 }
 
-// Reader returns a channel for reading incoming frames.
-func (d *bpfDev) Reader() <-chan *FrameWithTime {
-	return d.reader
-}
-
-// Writer returns a channel for sending frames. Frames sent into the channel
-// have to be smaller than MTU, otherwise they are silently discarded.
-func (d *bpfDev) Writer() chan<- *FrameBuf {
-	return d.writer
-}
-
-func (d *bpfDev) readFrames(bufLen int) {
-	buf := make([]byte, bufLen)
+func (d *bpfDev) Read(to Frame) (ts time.Time, err error) {
 	for {
-		n, err := d.fd.Read(buf)
+		for d.p < d.n {
+			hdr := (*bpf_hdr)(unsafe.Pointer(&d.readBuf[d.p]))
+			frameStart := d.p + int(hdr.bh_hdrlen)
+			ts = time.Unix(hdr.bh_tstamp.Unix())
+			flen := int(hdr.bh_caplen)
+			if len(to) < flen {
+				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), flen)
+			}
+			copy(to, d.readBuf[frameStart:frameStart+flen])
+			d.p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
+			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(to)) {
+				return
+			}
+		}
+
+		d.n, err = d.fd.Read([]byte(d.readBuf))
 		if err != nil {
 			return
 		}
-		p := int(0)
-		for p < n {
-			hdr := (*bpf_hdr)(unsafe.Pointer(&buf[p]))
-			frameStart := p + int(hdr.bh_hdrlen)
-			frame := getFrameWithTime(int(hdr.bh_caplen))
-			frame.Time = time.Unix(hdr.bh_tstamp.Unix())
-			copy(frame.Frame.Data, buf[frameStart:frameStart+int(hdr.bh_caplen)])
-			if !equalMAC(frame.Frame.Data.Source(), d.addr) && (d.filter == nil || d.filter(frame)) {
-				d.reader <- frame
-			} else {
-				frame.ReUse()
-			}
-			p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
-		}
+		d.p = 0
 	}
 }
 
-func (d *bpfDev) writeFrames(mtu int) {
-	for {
-		buf := <-d.writer
-		if len(buf.Data) > mtu {
-			continue
+func (d *bpfDev) Write(from Frame) (err error) {
+	if len(from) > d.mtu {
+		// check again in case it's been changed
+		_, err = d.GetMTU()
+		if err != nil {
+			return
 		}
-		n, err := d.fd.Write(buf.Data)
-		if n != len(buf.Data) || err != nil {
-			log.Printf("Writing frame may have failed. n: %d; len(frame): %d; err: %v\n", n, len(buf.Data), err)
+		if len(from) > d.mtu {
+			err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 		}
-		buf.ReUse()
 	}
+	var n int
+	n, err = d.fd.Write([]byte(from))
+	if err != nil {
+		return
+	}
+	if n != len(from) {
+		err = fmt.Errorf("writing frame may have failed. written [%d] != len(frame) [%d]", n, len(from))
+		return
+	}
+	return
 }

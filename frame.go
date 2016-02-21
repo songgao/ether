@@ -1,8 +1,11 @@
 package ether
 
 import (
+	"fmt"
 	"net"
 )
+
+type Frame []byte
 
 // Indicating whether/how a frame is tagged. The value is number of bytes taken
 // by tagging.
@@ -35,8 +38,7 @@ func (f Frame) Tagging() Tagging {
 }
 
 // Tag returns a slice holding the tag part of the frame, if any. Upper
-// layer should use the returned slice for both reading and writing
-// purposes.
+// layer should use the returned slice for both reading and writing.
 func (f Frame) Tag() []byte {
 	tagging := f.Tagging()
 	return f[12 : 12+tagging : 12+tagging]
@@ -54,22 +56,28 @@ func (f Frame) Payload() []byte {
 	return f[12+f.Tagging()+2:]
 }
 
-// BuildFrame returns a FrameBuf instance with proper length, with
-// destination/source addresses, tagging, ethertype filled.
-func BuildFrame(dst net.HardwareAddr, src net.HardwareAddr, tagging Tagging, ethertype Ethertype, payloadLength int) *FrameBuf {
-	buf := getFrameBuf(6 + 6 + int(tagging) + 2 + payloadLength)
-	copy(buf.Data[0:6:6], dst)
-	copy(buf.Data[6:12:12], src)
-	if tagging == Tagged {
-		buf.Data[12] = 0x81
-		buf.Data[13] = 0x00
-	} else if tagging == DoubleTagged {
-		buf.Data[12] = 0x88
-		buf.Data[13] = 0xa8
+// FillFrameHeader fills ethernet header in frame, starting from index 0, and
+// returns length of the header written. If length of frame is not large
+// enough for the header, an error is returned. This funcion does not change
+// length of frame slice. Caller is responsible of resizing the slice according
+// to header length as well as payload size.
+func FillFrameHeader(frame Frame, dst net.HardwareAddr, src net.HardwareAddr, tagging Tagging, ethertype Ethertype) (headerLength int, err error) {
+	headerLength = 6 + 6 + int(tagging) + 2
+	if headerLength > len(frame) {
+		err = fmt.Errorf("frame buffer length [%d] is smaller than required frame header length [%d]", len(frame), headerLength)
 	}
-	buf.Data[12+tagging] = ethertype[0]
-	buf.Data[12+tagging+1] = ethertype[1]
-	return buf
+	copy(frame[0:6:6], dst)
+	copy(frame[6:12:12], src)
+	if tagging == Tagged {
+		frame[12] = 0x81
+		frame[13] = 0x00
+	} else if tagging == DoubleTagged {
+		frame[12] = 0x88
+		frame[13] = 0xa8
+	}
+	frame[12+tagging] = ethertype[0]
+	frame[12+tagging+1] = ethertype[1]
+	return
 }
 
-type FrameFilter func(frame *FrameWithTime) bool
+type FrameFilter func(frame Frame) bool
