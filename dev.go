@@ -24,8 +24,12 @@ type Dev interface {
 	Name() string
 
 	// GetMTU returns MAC layer MTU of the device.
-	GetMTU() (mtu int, err error)
+	GetMTU() int
 
 	// GetHardwareAddr returns the MAC address of the device.
-	GetHardwareAddr() (net.HardwareAddr, error)
+	GetHardwareAddr() net.HardwareAddr
+
+	// Close closes the device fd. After calling this, this Dev cannot be used to
+	// read from or write into the device anymore.
+	Close() error
 }

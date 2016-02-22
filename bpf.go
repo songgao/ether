@@ -94,11 +94,11 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = d.GetMTU()
+	_, err = d.getMTU()
 	if err != nil {
 		return nil, err
 	}
-	_, err = d.GetHardwareAddr()
+	_, err = d.getHardwareAddr()
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,11 @@ func (d *bpfDev) Name() string {
 	return d.name
 }
 
-func (d *bpfDev) GetHardwareAddr() (net.HardwareAddr, error) {
+func (d *bpfDev) GetHardwareAddr() net.HardwareAddr {
+	return append(net.HardwareAddr(nil), d.addr...)
+}
+
+func (d *bpfDev) getHardwareAddr() (net.HardwareAddr, error) {
 	if d.addr != nil {
 		return d.addr, nil
 	}
@@ -131,7 +135,11 @@ func (d *bpfDev) GetHardwareAddr() (net.HardwareAddr, error) {
 	return d.addr, err
 }
 
-func (d *bpfDev) GetMTU() (int, error) {
+func (d *bpfDev) GetMTU() int {
+	return d.mtu
+}
+
+func (d *bpfDev) getMTU() (int, error) {
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
 		return -1, err
@@ -178,14 +186,7 @@ func (d *bpfDev) Read(to Frame) (ts time.Time, err error) {
 
 func (d *bpfDev) Write(from Frame) (err error) {
 	if len(from) > d.mtu {
-		// check again in case it's been changed
-		_, err = d.GetMTU()
-		if err != nil {
-			return
-		}
-		if len(from) > d.mtu {
-			err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
-		}
+		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
 	var n int
 	n, err = d.fd.Write([]byte(from))
@@ -197,4 +198,8 @@ func (d *bpfDev) Write(from Frame) (err error) {
 		return
 	}
 	return
+}
+
+func (d *bpfDev) Close() error {
+	return d.fd.Close()
 }
