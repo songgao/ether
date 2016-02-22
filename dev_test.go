@@ -86,7 +86,7 @@ func TestWriteFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if nil == w() {
+	if err = w(); nil == err {
 		t.Fatal("closed Dev can still write")
 	}
 }

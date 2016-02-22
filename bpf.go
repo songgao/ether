@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -83,24 +82,25 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	d.filter = frameFilter
 	d.fd, err = getBpfFd()
 	if err != nil {
-		return nil, err
+		return
 	}
 	err = ifReq(d.fd, ifName)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	bufLen, err := ioCtl(d.fd)
+	var bufLen int
+	bufLen, err = ioCtl(d.fd)
 	if err != nil {
-		return nil, err
+		return
 	}
 	_, err = d.getMTU()
 	if err != nil {
-		return nil, err
+		return
 	}
 	_, err = d.getHardwareAddr()
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	d.readBuf = make([]byte, bufLen)
@@ -159,17 +159,17 @@ func (d *bpfDev) getMTU() (int, error) {
 	return d.mtu, err
 }
 
-func (d *bpfDev) Read(to Frame) (ts time.Time, err error) {
+func (d *bpfDev) Read(to Frame) (n int, err error) {
 	for {
 		for d.p < d.n {
 			hdr := (*bpf_hdr)(unsafe.Pointer(&d.readBuf[d.p]))
 			frameStart := d.p + int(hdr.bh_hdrlen)
-			ts = time.Unix(hdr.bh_tstamp.Unix())
-			flen := int(hdr.bh_caplen)
-			if len(to) < flen {
-				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), flen)
+			n = int(hdr.bh_caplen)
+			if len(to) < n {
+				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), n)
+				return
 			}
-			copy(to, d.readBuf[frameStart:frameStart+flen])
+			copy(to, d.readBuf[frameStart:frameStart+n])
 			d.p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
 			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(to)) {
 				return

@@ -1,16 +1,13 @@
 package ether
 
-import (
-	"net"
-	"time"
-)
+import "net"
 
 type Dev interface {
 	// Read reads a ethernet frame into to, and returns its timestamp if
 	// successfull. to needs to be sufficiently large to hold a MAC frame with
 	// its header and payload, normally 1514 assuming a MTU of 1500 and no
 	// tagging.
-	Read(to Frame) (ts time.Time, err error)
+	Read(to Frame) (n int, err error)
 
 	// Write writes a ethernet frame into the device. from should include
 	// ethernet frame header as well as payload, but not ethernet CRC. See
