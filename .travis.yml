@@ -1,15 +1,26 @@
-os:
-  - osx
-
 language: go
-
-go:
-  - 1.6
-  - tip
 
 install:
   go get golang.org/x/sys/unix
 
 script: 
   - ifconfig 
-  - sudo -E go test -v -dev=en0
+  - sudo -E env "PATH=$PATH" go test -v -dev=$IFCE
+
+matrix:
+  include:
+    - os: osx
+      go: 1.6
+      env: IFCE=en0
+    - os: linux
+      go: 1.6
+      dist: trusty
+      env: IFCE=eth0
+    - os: osx
+      go: tip
+      env: IFCE=en0
+    - os: linux
+      go: tip
+      dist: trusty
+      env: IFCE=eth0
+

@@ -31,8 +31,10 @@ func TestReadFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	to := make(Frame, 1600)
+	var n int
 	for i := 0; i < 16; i++ {
-		_, err = dev.Read(to)
+		n, err = dev.Read(to)
+		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to[:n].Payload())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +45,12 @@ func TestReadFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = dev.Read(to)
+	for i := 0; i < 1024; i++ {
+		_, err = dev.Read(to)
+		if err != nil {
+			break
+		}
+	}
 	if err == nil {
 		t.Fatal("closed Dev can still read")
 	}
@@ -64,12 +71,12 @@ func TestWriteFrame(t *testing.T) {
 	}
 	frame := make(Frame, 1514)
 	w := func() (err error) {
-		_, err = FillFrameHeader(frame, dst, src, NotTagged, WSMP)
+		n, err := FillFrameHeader(frame, dst, src, NotTagged, WSMP)
 		if err != nil {
 			return
 		}
 		copy(frame.Payload(), "Hello, World!")
-		err = dev.Write(frame)
+		err = dev.Write(frame[:n+13])
 		if err != nil {
 			return
 		}

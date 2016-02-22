@@ -26,7 +26,10 @@ type Dev interface {
 	// GetHardwareAddr returns the MAC address of the device.
 	GetHardwareAddr() net.HardwareAddr
 
-	// Close closes the device fd. After calling this, this Dev cannot be used to
-	// read from or write into the device anymore.
+	// Close closes the device fd. After calling this, this Dev cannot read from
+	// or write into the device anymore. This means both Read() Write() should
+	// fail on AF_PACKET based systems. On BPF based systems, Write() should
+	// fail, and Read() can read until all cached frames are consumed before
+	// failing.
 	Close() error
 }

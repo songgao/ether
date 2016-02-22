@@ -1,7 +1,15 @@
 [![Build Status](https://travis-ci.org/songgao/ether.svg?branch=master)](https://travis-ci.org/songgao/ether)
 
 # ether
-ether is a go package for sending and receiving ethernet frames. Only BPF is implemented for now, so it only works on BSD-like systems at the time.
+ether is a go package for sending and receiving ethernet frames.
+
+Currently supported platform:
+
+- BPF based
+  - OS X
+  - FreeBSD
+- AF_PACKET based
+  - Linux
 
 ## Documentation
 
@@ -9,8 +17,7 @@ ether is a go package for sending and receiving ethernet frames. Only BPF is imp
 
 ## TODO
 
-* packets filtering in BPF
-* Linux support
+* in kernel packets filtering
 
 ## License
 
