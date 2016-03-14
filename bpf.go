@@ -159,19 +159,20 @@ func (d *bpfDev) getMTU() (int, error) {
 	return d.mtu, err
 }
 
-func (d *bpfDev) Read(to Frame) (n int, err error) {
+func (d *bpfDev) Read(to *Frame) (err error) {
 	for {
 		for d.p < d.n {
 			hdr := (*bpf_hdr)(unsafe.Pointer(&d.readBuf[d.p]))
 			frameStart := d.p + int(hdr.bh_hdrlen)
-			n = int(hdr.bh_caplen)
-			if len(to) < n {
-				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), n)
+			n := int(hdr.bh_caplen)
+			if cap(*to) < n {
+				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(*to), n)
 				return
 			}
-			copy(to, d.readBuf[frameStart:frameStart+n])
+			*to = (*to)[:n]
+			copy(*to, d.readBuf[frameStart:frameStart+n])
 			d.p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
-			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(to)) {
+			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
 				return
 			}
 		}

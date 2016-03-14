@@ -3,11 +3,11 @@ package ether
 import "net"
 
 type Dev interface {
-	// Read reads a ethernet frame into to, and returns its timestamp if
-	// successfull. to needs to be sufficiently large to hold a MAC frame with
-	// its header and payload, normally 1514 assuming a MTU of 1500 and no
-	// tagging.
-	Read(to Frame) (n int, err error)
+	// Read reads a ethernet frame into *to. *to needs to have a capacity
+	// sufficiently large to hold a MAC frame with its header and payload,
+	// normally 1514 assuming a MTU of 1500 and no tagging. If read is
+	// successful, *to is resized to properly reflect the frame length.
+	Read(to *Frame) (err error)
 
 	// Write writes a ethernet frame into the device. from should include
 	// ethernet frame header as well as payload, but not ethernet CRC. See

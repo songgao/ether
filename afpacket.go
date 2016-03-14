@@ -133,18 +133,20 @@ func (d *afpacket) Write(from Frame) (err error) {
 	return
 }
 
-func (d *afpacket) Read(to Frame) (n int, err error) {
+func (d *afpacket) Read(to *Frame) (err error) {
 	for {
+		var n int
 		n, _, err = unix.Recvfrom(d.fd, d.buf, 0)
 		if err != nil {
 			return
 		}
-		if n > len(to) {
-			err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), n)
+		if cap(*to) < n {
+			err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(*to), n)
 			return
 		}
-		copy(to, d.buf[:n])
-		if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(to)) {
+		*to = (*to)[:n]
+		copy(*to, d.buf[:n])
+		if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
 			return
 		}
 	}

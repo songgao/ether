@@ -31,10 +31,9 @@ func TestReadFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	to := make(Frame, 1600)
-	var n int
 	for i := 0; i < 16; i++ {
-		n, err = dev.Read(to)
-		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to[:n].Payload())
+		err = dev.Read(&to)
+		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to.Payload())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,7 +45,7 @@ func TestReadFrame(t *testing.T) {
 	}
 
 	for i := 0; i < 1024; i++ {
-		_, err = dev.Read(to)
+		err = dev.Read(&to)
 		if err != nil {
 			break
 		}
