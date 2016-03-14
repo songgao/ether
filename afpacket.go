@@ -24,8 +24,8 @@ func htons(h int) (n int) {
 }
 
 type afpacket struct {
-	name        string
-	frameFilter FrameFilter
+	name   string
+	filter FrameFilter
 
 	fd   int
 	mtu  int
@@ -46,7 +46,7 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 
 	d := new(afpacket)
 	d.name = ifName
-	d.frameFilter = frameFilter
+	d.filter = frameFilter
 
 	d.fd, err = unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, htons(unix.ETH_P_ALL))
 	if err != nil {
@@ -134,14 +134,18 @@ func (d *afpacket) Write(from Frame) (err error) {
 }
 
 func (d *afpacket) Read(to Frame) (n int, err error) {
-	n, _, err = unix.Recvfrom(d.fd, d.buf, 0)
-	if err != nil {
-		return
+	for {
+		n, _, err = unix.Recvfrom(d.fd, d.buf, 0)
+		if err != nil {
+			return
+		}
+		if n > len(to) {
+			err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), n)
+			return
+		}
+		copy(to, d.buf[:n])
+		if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(to)) {
+			return
+		}
 	}
-	if n > len(to) {
-		err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(to), n)
-		return
-	}
-	copy(to, d.buf[:n])
-	return
 }
