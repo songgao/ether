@@ -34,8 +34,7 @@ type afpacket struct {
 	// for outgoing frames
 	sockaddr_ll *unix.SockaddrLinklayer
 
-	// for incoming frames
-	buf []byte
+	maxFrameSize int
 }
 
 func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
@@ -99,7 +98,9 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	d.sockaddr_ll.Ifindex = index
 	d.sockaddr_ll.Halen = 6
 
-	d.buf = make([]byte, d.mtu+20)
+	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
+	// up to 8 bytes
+	d.maxFrameSize = d.mtu + 22
 
 	dev = d
 	return
@@ -122,7 +123,7 @@ func (d *afpacket) Close() error {
 }
 
 func (d *afpacket) Write(from Frame) (err error) {
-	if len(from) > d.mtu {
+	if len(from) > d.maxFrameSize {
 		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
 	copy(d.sockaddr_ll.Addr[:6], []byte(from.Destination()))
@@ -134,18 +135,16 @@ func (d *afpacket) Write(from Frame) (err error) {
 }
 
 func (d *afpacket) Read(to *Frame) (err error) {
+	if cap(*to) < d.maxFrameSize {
+		*to = make(Frame, d.maxFrameSize)
+	}
 	for {
 		var n int
-		n, _, err = unix.Recvfrom(d.fd, d.buf, 0)
+		n, _, err = unix.Recvfrom(d.fd, []byte(*to), 0)
 		if err != nil {
 			return
 		}
-		if cap(*to) < n {
-			err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(*to), n)
-			return
-		}
 		*to = (*to)[:n]
-		copy(*to, d.buf[:n])
 		if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
 			return
 		}

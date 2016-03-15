@@ -3,10 +3,10 @@ package ether
 import "net"
 
 type Dev interface {
-	// Read reads a ethernet frame into *to. *to needs to have a capacity
-	// sufficiently large to hold a MAC frame with its header and payload,
-	// normally 1514 assuming a MTU of 1500 and no tagging. If read is
-	// successful, *to is resized to properly reflect the frame length.
+	// Read reads a ethernet frame into *to. A sufficiently large (MTU + 22
+	// bytes) buffer is allocated and assigned to *to if needed. As a result,
+	// non-nil to pointed to a nil *to would work. If read is successful, *to is
+	// resized to properly reflect the frame length.
 	Read(to *Frame) (err error)
 
 	// Write writes a ethernet frame into the device. from should include

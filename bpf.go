@@ -70,6 +70,8 @@ type bpfDev struct {
 	readBuf []byte
 	p       int
 	n       int
+
+	maxFrameSize int
 }
 
 // NewDev returns a handle to BPF device. ifName is the interface name to be
@@ -104,6 +106,10 @@ func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	}
 
 	d.readBuf = make([]byte, bufLen)
+
+	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
+	// up to 8 bytes
+	d.maxFrameSize = d.mtu + 22
 
 	dev = d
 
@@ -160,15 +166,14 @@ func (d *bpfDev) getMTU() (int, error) {
 }
 
 func (d *bpfDev) Read(to *Frame) (err error) {
+	if cap(*to) < d.maxFrameSize {
+		*to = make(Frame, d.maxFrameSize)
+	}
 	for {
 		for d.p < d.n {
 			hdr := (*bpf_hdr)(unsafe.Pointer(&d.readBuf[d.p]))
 			frameStart := d.p + int(hdr.bh_hdrlen)
 			n := int(hdr.bh_caplen)
-			if cap(*to) < n {
-				err = fmt.Errorf("destination buffer too small (%d); need (%d)\n", len(*to), n)
-				return
-			}
 			*to = (*to)[:n]
 			copy(*to, d.readBuf[frameStart:frameStart+n])
 			d.p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
@@ -186,7 +191,7 @@ func (d *bpfDev) Read(to *Frame) (err error) {
 }
 
 func (d *bpfDev) Write(from Frame) (err error) {
-	if len(from) > d.mtu {
+	if len(from) > d.maxFrameSize {
 		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
 	var n int

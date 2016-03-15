@@ -30,7 +30,7 @@ func TestReadFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	to := make(Frame, 1600)
+	var to Frame
 	for i := 0; i < 16; i++ {
 		err = dev.Read(&to)
 		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to.Payload())
