@@ -139,6 +139,7 @@ func (d *afpacket) Read(to *Frame) (err error) {
 		*to = make(Frame, d.maxFrameSize)
 	}
 	for {
+		*to = (*to)[:cap(*to)]
 		var n int
 		n, _, err = unix.Recvfrom(d.fd, []byte(*to), 0)
 		if err != nil {
