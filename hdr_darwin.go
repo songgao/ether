@@ -11,15 +11,15 @@ package ether
  *  };
  *
  */
-type bpf_hdr struct {
-	bh_tstamp  timeval // 8 bytes
-	bh_caplen  uint32
-	bh_datalen uint32
-	bh_hdrlen  uint16
+type bpfHdr struct {
+	_       timeval // 8 bytes
+	caplen  uint32
+	datalen uint32
+	hdrlen  uint16
 }
 
 func (tv *timeval) Unix() (sec int64, nsec int64) {
 	return int64(tv.Sec), int64(tv.Usec) * 1000
 }
 
-const word_length = 4
+const wordLength = 4

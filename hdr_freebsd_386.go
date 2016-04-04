@@ -1,3 +1,3 @@
 package ether
 
-const word_length = 4
+const wordLength = 4

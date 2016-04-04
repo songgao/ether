@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/songgao/packets/ethernet"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -37,7 +39,7 @@ type afpacket struct {
 	maxFrameSize int
 }
 
-func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
+func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	if len([]byte(ifName)) > unix.IFNAMSIZ {
 		err = errors.New("invalid ifName")
 		return
@@ -122,7 +124,7 @@ func (d *afpacket) Close() error {
 	return unix.Close(d.fd)
 }
 
-func (d *afpacket) Write(from Frame) (err error) {
+func (d *afpacket) Write(from ethernet.Frame) (err error) {
 	if len(from) > d.maxFrameSize {
 		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
@@ -134,9 +136,9 @@ func (d *afpacket) Write(from Frame) (err error) {
 	return
 }
 
-func (d *afpacket) Read(to *Frame) (err error) {
+func (d *afpacket) Read(to *ethernet.Frame) (err error) {
 	if cap(*to) < d.maxFrameSize {
-		*to = make(Frame, d.maxFrameSize)
+		*to = make(ethernet.Frame, d.maxFrameSize)
 	}
 	for {
 		*to = (*to)[:cap(*to)]

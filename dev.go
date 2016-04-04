@@ -1,13 +1,18 @@
 package ether
 
-import "net"
+import (
+	"net"
 
+	"github.com/songgao/packets/ethernet"
+)
+
+// Dev represents a network interface.
 type Dev interface {
 	// Read reads a ethernet frame into *to. A sufficiently large (MTU + 22
 	// bytes) buffer is allocated and assigned to *to if needed. As a result,
 	// non-nil to pointed to a nil *to would work. If read is successful, *to is
 	// resized to properly reflect the frame length.
-	Read(to *Frame) (err error)
+	Read(to *ethernet.Frame) (err error)
 
 	// Write writes a ethernet frame into the device. from should include
 	// ethernet frame header as well as payload, but not ethernet CRC. See
@@ -15,7 +20,7 @@ type Dev interface {
 	// have a length field, caller needs to make sure from has proper length.
 	// That is, the slice should be resized to cover exact number of bytes of the
 	// frame.
-	Write(from Frame) error
+	Write(from ethernet.Frame) error
 
 	// Name returns the device name, e.g., en0, eth0, enp0s1, etc.
 	Name() string
@@ -32,4 +37,11 @@ type Dev interface {
 	// fail, and Read() can read until all cached frames are consumed before
 	// failing.
 	Close() error
+}
+
+// NewDev creates a new Dev that operates on the network interface ifName, with
+// frameFilter used as a filter on incoming frames for Read(). If frameFilter
+// is nil, all frames will be returned.
+func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
+	return newDev(ifName, frameFilter)
 }

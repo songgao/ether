@@ -1,7 +1,7 @@
 language: go
 
 install:
-  go get golang.org/x/sys/unix
+  go get golang.org/x/sys/unix github.com/songgao/packets/ethernet
 
 script: 
   - ifconfig 

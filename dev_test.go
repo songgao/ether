@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 	"testing"
+
+	"github.com/songgao/packets/ethernet"
 )
 
 var dev = flag.String("dev", "en0", "interface name")
@@ -30,7 +32,7 @@ func TestReadFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var to Frame
+	var to ethernet.Frame
 	for i := 0; i < 16; i++ {
 		err = dev.Read(&to)
 		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to.Payload())
@@ -68,14 +70,11 @@ func TestWriteFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frame := make(Frame, 1514)
+	var frame ethernet.Frame
 	w := func() (err error) {
-		n, err := FillFrameHeader(frame, dst, src, NotTagged, WSMP)
-		if err != nil {
-			return
-		}
+		(&frame).Prepare(dst, src, ethernet.NotTagged, ethernet.WSMP, 13)
 		copy(frame.Payload(), "Hello, World!")
-		err = dev.Write(frame[:n+13])
+		err = dev.Write(frame)
 		if err != nil {
 			return
 		}

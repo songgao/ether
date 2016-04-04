@@ -15,9 +15,9 @@ import "golang.org/x/sys/unix"
  * Note: FreeBSD may deprecate bpf_hdr in favor of bpf_xhdr in the future
  *
  */
-type bpf_hdr struct {
-	bh_tstamp  unix.Timeval // 8 or 16 bytes depending on arch
-	bh_caplen  uint32
-	bh_datalen uint32
-	bh_hdrlen  uint16
+type bpfHdr struct {
+	_       unix.Timeval // 8 or 16 bytes depending on arch
+	caplen  uint32
+	datalen uint32
+	hdrlen  uint16
 }

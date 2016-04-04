@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/songgao/packets/ethernet"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -41,22 +43,22 @@ func ifReq(fd *os.File, ifName string) (err error) {
 	return
 }
 
-func ioCtl(fd *os.File) (buf_len int, err error) {
-	buf_len = 1
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCIMMEDIATE), uintptr(unsafe.Pointer(&buf_len)))
+func ioCtl(fd *os.File) (bufLen int, err error) {
+	bufLen = 1
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCIMMEDIATE), uintptr(unsafe.Pointer(&bufLen)))
 	if errno != 0 {
 		err = errno
 		return
 	}
-	_, _, errno = unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCGBLEN), uintptr(unsafe.Pointer(&buf_len)))
+	_, _, errno = unix.Syscall(unix.SYS_IOCTL, fd.Fd(), uintptr(unix.BIOCGBLEN), uintptr(unsafe.Pointer(&bufLen)))
 	if errno != 0 {
 		err = errno
 	}
 	return
 }
 
-func bpf_wordalign(x int) int {
-	return (((x) + (word_length - 1)) &^ (word_length - 1))
+func bpfWordalign(x int) int {
+	return (((x) + (wordLength - 1)) &^ (wordLength - 1))
 }
 
 type bpfDev struct {
@@ -78,7 +80,7 @@ type bpfDev struct {
 // listened on, and frameFilter is used to determine whether a frame should be
 // discarded when reading. Set it to nil to disable filtering.
 // TODO: use kernel for filtering
-func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
+func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	d := new(bpfDev)
 	d.name = ifName
 	d.filter = frameFilter
@@ -165,24 +167,24 @@ func (d *bpfDev) getMTU() (int, error) {
 	return d.mtu, err
 }
 
-func (d *bpfDev) Read(to *Frame) (err error) {
+func (d *bpfDev) Read(to *ethernet.Frame) (err error) {
 	if cap(*to) < d.maxFrameSize {
-		*to = make(Frame, d.maxFrameSize)
+		*to = make(ethernet.Frame, d.maxFrameSize)
 	}
 	for {
 		for d.p < d.n {
-			hdr := (*bpf_hdr)(unsafe.Pointer(&d.readBuf[d.p]))
-			frameStart := d.p + int(hdr.bh_hdrlen)
-			n := int(hdr.bh_caplen)
+			hdr := (*bpfHdr)(unsafe.Pointer(&d.readBuf[d.p]))
+			frameStart := d.p + int(hdr.hdrlen)
+			n := int(hdr.caplen)
 			*to = (*to)[:n]
 			copy(*to, d.readBuf[frameStart:frameStart+n])
-			d.p += bpf_wordalign(int(hdr.bh_hdrlen) + int(hdr.bh_caplen))
+			d.p += bpfWordalign(int(hdr.hdrlen) + int(hdr.caplen))
 			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
 				return
 			}
 		}
 
-		d.n, err = d.fd.Read([]byte(d.readBuf))
+		d.n, err = d.fd.Read(d.readBuf)
 		if err != nil {
 			return
 		}
@@ -190,7 +192,7 @@ func (d *bpfDev) Read(to *Frame) (err error) {
 	}
 }
 
-func (d *bpfDev) Write(from Frame) (err error) {
+func (d *bpfDev) Write(from ethernet.Frame) (err error) {
 	if len(from) > d.maxFrameSize {
 		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
