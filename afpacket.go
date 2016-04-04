@@ -34,7 +34,7 @@ type afpacket struct {
 	addr net.HardwareAddr
 
 	// for outgoing frames
-	sockaddr_ll *unix.SockaddrLinklayer
+	sockaddrLL *unix.SockaddrLinklayer
 
 	maxFrameSize int
 }
@@ -55,50 +55,50 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	}
 
 	// get interface index
-	ifindex_st := struct {
-		ifr_name    [unix.IFNAMSIZ]byte
-		ifr_ifindex uint32
+	ifindexSt := struct {
+		ifrName    [unix.IFNAMSIZ]byte
+		ifrIfindex uint32
 	}{}
-	copy(ifindex_st.ifr_name[:], []byte(ifName))
+	copy(ifindexSt.ifrName[:], []byte(ifName))
 	var errno syscall.Errno
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFINDEX), uintptr(unsafe.Pointer(&ifindex_st)))
+	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFINDEX), uintptr(unsafe.Pointer(&ifindexSt)))
 	if errno != 0 {
 		err = errno
 		return
 	}
-	index := int(ifindex_st.ifr_ifindex)
+	index := int(ifindexSt.ifrIfindex)
 
 	// get MAC address
-	ifhaddr_st := struct {
-		ifr_name   [unix.IFNAMSIZ]byte
-		ifr_hwaddr unix.RawSockaddr
+	ifhaddrSt := struct {
+		ifrName   [unix.IFNAMSIZ]byte
+		ifrHwaddr unix.RawSockaddr
 	}{}
-	copy(ifhaddr_st.ifr_name[:], []byte(ifName))
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFHWADDR), uintptr(unsafe.Pointer(&ifhaddr_st)))
+	copy(ifhaddrSt.ifrName[:], []byte(ifName))
+	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFHWADDR), uintptr(unsafe.Pointer(&ifhaddrSt)))
 	if errno != 0 {
 		err = errno
 		return
 	}
 	for i := 0; i < 6; i++ {
-		d.addr = append(d.addr, byte(ifhaddr_st.ifr_hwaddr.Data[i]))
+		d.addr = append(d.addr, byte(ifhaddrSt.ifrHwaddr.Data[i]))
 	}
 
 	// get MTU
-	ifmtu_st := struct {
-		ifr_name [unix.IFNAMSIZ]byte
-		ifr_mtu  uint32
+	ifmtuSt := struct {
+		ifrName [unix.IFNAMSIZ]byte
+		ifrMTU  uint32
 	}{}
-	copy(ifmtu_st.ifr_name[:], []byte(ifName))
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifmtu_st)))
+	copy(ifmtuSt.ifrName[:], []byte(ifName))
+	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifmtuSt)))
 	if errno != 0 {
 		err = errno
 		return
 	}
-	d.mtu = int(ifmtu_st.ifr_mtu)
+	d.mtu = int(ifmtuSt.ifrMTU)
 
-	d.sockaddr_ll = new(unix.SockaddrLinklayer)
-	d.sockaddr_ll.Ifindex = index
-	d.sockaddr_ll.Halen = 6
+	d.sockaddrLL = new(unix.SockaddrLinklayer)
+	d.sockaddrLL.Ifindex = index
+	d.sockaddrLL.Halen = 6
 
 	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
 	// up to 8 bytes
@@ -128,8 +128,8 @@ func (d *afpacket) Write(from ethernet.Frame) (err error) {
 	if len(from) > d.maxFrameSize {
 		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
 	}
-	copy(d.sockaddr_ll.Addr[:6], []byte(from.Destination()))
-	err = unix.Sendto(d.fd, []byte(from), 0, d.sockaddr_ll)
+	copy(d.sockaddrLL.Addr[:6], []byte(from.Destination()))
+	err = unix.Sendto(d.fd, []byte(from), 0, d.sockaddrLL)
 	if err != nil {
 		return
 	}
