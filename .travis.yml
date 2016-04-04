@@ -10,7 +10,7 @@ install:
 script: 
   - ifconfig 
   - sudo -E env "PATH=$PATH" go test -v -covermode=count -coverprofile=coverage.out -dev=$IFCE
-  - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
+  - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN || true
 
 matrix:
   include:
