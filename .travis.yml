@@ -1,26 +1,39 @@
 language: go
 
+
 install:
-  go get golang.org/x/sys/unix github.com/songgao/packets/ethernet
+  - go get golang.org/x/sys/unix
+  - go get github.com/songgao/packets/ethernet
+  - go get golang.org/x/tools/cmd/cover 
+  - go get github.com/mattn/goveralls
 
 script: 
   - ifconfig 
-  - sudo -E env "PATH=$PATH" go test -v -dev=$IFCE
+  - sudo -E env "PATH=$PATH" go test -v -covermode=count -coverprofile=coverage.out -dev=$IFCE
+  - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
 
 matrix:
   include:
     - os: osx
       go: 1.6
-      env: IFCE=en0
+      env:
+        - IFCE=en0
+        - secure: "iovSCAwTE8inh49YfbvL866/gW7u3/g1nMr7/oYJkEogYXOXIClK8uj6oMltbqt6HWPwkreTUwlcy9RQzwLHxKXf1wWKF/WtLMRLmlRsiTbJ92O9cDcWydeqfgRhEKsxxeGOjHA1GxopzbokRD000wKebkgGTF2JthlNXwblAZE="
     - os: linux
       go: 1.6
       dist: trusty
-      env: IFCE=eth0
+      env:
+        - IFCE=eth0
+        - secure: "iovSCAwTE8inh49YfbvL866/gW7u3/g1nMr7/oYJkEogYXOXIClK8uj6oMltbqt6HWPwkreTUwlcy9RQzwLHxKXf1wWKF/WtLMRLmlRsiTbJ92O9cDcWydeqfgRhEKsxxeGOjHA1GxopzbokRD000wKebkgGTF2JthlNXwblAZE="
     - os: osx
       go: tip
-      env: IFCE=en0
+      env:
+        - IFCE=en0
+        - secure: "iovSCAwTE8inh49YfbvL866/gW7u3/g1nMr7/oYJkEogYXOXIClK8uj6oMltbqt6HWPwkreTUwlcy9RQzwLHxKXf1wWKF/WtLMRLmlRsiTbJ92O9cDcWydeqfgRhEKsxxeGOjHA1GxopzbokRD000wKebkgGTF2JthlNXwblAZE="
     - os: linux
       go: tip
       dist: trusty
-      env: IFCE=eth0
+      env:
+        - IFCE=eth0
+        - secure: "iovSCAwTE8inh49YfbvL866/gW7u3/g1nMr7/oYJkEogYXOXIClK8uj6oMltbqt6HWPwkreTUwlcy9RQzwLHxKXf1wWKF/WtLMRLmlRsiTbJ92O9cDcWydeqfgRhEKsxxeGOjHA1GxopzbokRD000wKebkgGTF2JthlNXwblAZE="
 
