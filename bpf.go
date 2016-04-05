@@ -3,12 +3,9 @@
 package ether
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
-	"strings"
 	"unsafe"
 
 	"github.com/songgao/packets/ethernet"
@@ -27,9 +24,6 @@ func getBpfFd() (file *os.File, err error) {
 }
 
 func ifReq(fd *os.File, ifName string) (err error) {
-	if len(ifName) > 0x10 {
-		return errors.New("Invalid ifname.")
-	}
 	req := struct {
 		Name [0x10]byte
 		pad  [0x28 - 0x10]byte
@@ -62,8 +56,7 @@ func bpfWordalign(x int) int {
 }
 
 type bpfDev struct {
-	name   string
-	addr   net.HardwareAddr
+	ifce   *net.Interface
 	fd     *os.File
 	filter FrameFilter
 	mtu    int
@@ -80,15 +73,15 @@ type bpfDev struct {
 // listened on, and frameFilter is used to determine whether a frame should be
 // discarded when reading. Set it to nil to disable filtering.
 // TODO: use kernel for filtering
-func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
+func newDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
 	d := new(bpfDev)
-	d.name = ifName
+	d.ifce = ifce
 	d.filter = frameFilter
 	d.fd, err = getBpfFd()
 	if err != nil {
 		return
 	}
-	err = ifReq(d.fd, ifName)
+	err = ifReq(d.fd, ifce.Name)
 	if err != nil {
 		return
 	}
@@ -99,10 +92,6 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 		return
 	}
 	_, err = d.getMTU()
-	if err != nil {
-		return
-	}
-	_, err = d.getHardwareAddr()
 	if err != nil {
 		return
 	}
@@ -118,29 +107,8 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	return
 }
 
-func (d *bpfDev) Name() string {
-	return d.name
-}
-
-func (d *bpfDev) GetHardwareAddr() net.HardwareAddr {
-	return append(net.HardwareAddr(nil), d.addr...)
-}
-
-func (d *bpfDev) getHardwareAddr() (net.HardwareAddr, error) {
-	if d.addr != nil {
-		return d.addr, nil
-	}
-	out, err := exec.Command("ifconfig", d.name).Output()
-	if err != nil {
-		return nil, err
-	}
-	str := string(out)
-	pos := strings.Index(str, "ether ")
-	if pos < 0 || pos+6+17 > len(str) {
-		return nil, errors.New("ether keyword not found in ifconfig output")
-	}
-	d.addr, err = net.ParseMAC(str[pos+6 : pos+6+17])
-	return d.addr, err
+func (d *bpfDev) Interface() *net.Interface {
+	return d.ifce
 }
 
 func (d *bpfDev) GetMTU() int {
@@ -157,7 +125,7 @@ func (d *bpfDev) getMTU() (int, error) {
 		Mtu  int32
 		pad  [0x28 - 0x10 - 0x4]byte
 	}{}
-	copy(req.Name[:], d.name)
+	copy(req.Name[:], d.ifce.Name)
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCGIFMTU), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		err = errno
@@ -179,7 +147,7 @@ func (d *bpfDev) Read(to *ethernet.Frame) (err error) {
 			*to = (*to)[:n]
 			copy(*to, d.readBuf[frameStart:frameStart+n])
 			d.p += bpfWordalign(int(hdr.hdrlen) + int(hdr.caplen))
-			if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
+			if !equalMAC(to.Source(), d.ifce.HardwareAddr) && (d.filter == nil || d.filter(*to)) {
 				return
 			}
 		}

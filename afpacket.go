@@ -3,7 +3,6 @@
 package ether
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"syscall"
@@ -26,12 +25,11 @@ func htons(h int) (n int) {
 }
 
 type afpacket struct {
-	name   string
+	ifce   *net.Interface
 	filter FrameFilter
 
-	fd   int
-	mtu  int
-	addr net.HardwareAddr
+	fd  int
+	mtu int
 
 	// for outgoing frames
 	sockaddrLL *unix.SockaddrLinklayer
@@ -39,14 +37,9 @@ type afpacket struct {
 	maxFrameSize int
 }
 
-func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
-	if len([]byte(ifName)) > unix.IFNAMSIZ {
-		err = errors.New("invalid ifName")
-		return
-	}
-
+func newDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
 	d := new(afpacket)
-	d.name = ifName
+	d.ifce = ifce
 	d.filter = frameFilter
 
 	d.fd, err = unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, htons(unix.ETH_P_ALL))
@@ -54,42 +47,13 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 		return
 	}
 
-	// get interface index
-	ifindexSt := struct {
-		ifrName    [unix.IFNAMSIZ]byte
-		ifrIfindex uint32
-	}{}
-	copy(ifindexSt.ifrName[:], []byte(ifName))
-	var errno syscall.Errno
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFINDEX), uintptr(unsafe.Pointer(&ifindexSt)))
-	if errno != 0 {
-		err = errno
-		return
-	}
-	index := int(ifindexSt.ifrIfindex)
-
-	// get MAC address
-	ifhaddrSt := struct {
-		ifrName   [unix.IFNAMSIZ]byte
-		ifrHwaddr unix.RawSockaddr
-	}{}
-	copy(ifhaddrSt.ifrName[:], []byte(ifName))
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFHWADDR), uintptr(unsafe.Pointer(&ifhaddrSt)))
-	if errno != 0 {
-		err = errno
-		return
-	}
-	for i := 0; i < 6; i++ {
-		d.addr = append(d.addr, byte(ifhaddrSt.ifrHwaddr.Data[i]))
-	}
-
 	// get MTU
 	ifmtuSt := struct {
 		ifrName [unix.IFNAMSIZ]byte
 		ifrMTU  uint32
 	}{}
-	copy(ifmtuSt.ifrName[:], []byte(ifName))
-	_, _, errno = unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifmtuSt)))
+	copy(ifmtuSt.ifrName[:], []byte(ifce.Name))
+	_, _, errno := unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifmtuSt)))
 	if errno != 0 {
 		err = errno
 		return
@@ -97,7 +61,7 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	d.mtu = int(ifmtuSt.ifrMTU)
 
 	d.sockaddrLL = new(unix.SockaddrLinklayer)
-	d.sockaddrLL.Ifindex = index
+	d.sockaddrLL.Ifindex = ifce.Index
 	d.sockaddrLL.Halen = 6
 
 	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
@@ -108,16 +72,12 @@ func newDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
 	return
 }
 
-func (d *afpacket) Name() string {
-	return d.name
+func (d *afpacket) Interface() *net.Interface {
+	return d.ifce
 }
 
 func (d *afpacket) GetMTU() int {
 	return d.mtu
-}
-
-func (d *afpacket) GetHardwareAddr() net.HardwareAddr {
-	return append(net.HardwareAddr(nil), d.addr...)
 }
 
 func (d *afpacket) Close() error {
@@ -148,7 +108,7 @@ func (d *afpacket) Read(to *ethernet.Frame) (err error) {
 			return
 		}
 		*to = (*to)[:n]
-		if !equalMAC(to.Source(), d.addr) && (d.filter == nil || d.filter(*to)) {
+		if !equalMAC(to.Source(), d.ifce.HardwareAddr) && (d.filter == nil || d.filter(*to)) {
 			return
 		}
 	}

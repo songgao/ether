@@ -22,14 +22,11 @@ type Dev interface {
 	// frame.
 	Write(from ethernet.Frame) error
 
-	// Name returns the device name, e.g., en0, eth0, enp0s1, etc.
-	Name() string
+	// Interface returns the *net.Interface that this Dev operates on.
+	Interface() *net.Interface
 
 	// GetMTU returns MAC layer MTU of the device.
 	GetMTU() int
-
-	// GetHardwareAddr returns the MAC address of the device.
-	GetHardwareAddr() net.HardwareAddr
 
 	// Close closes the device fd. After calling this, this Dev cannot read from
 	// or write into the device anymore. This means both Read() Write() should
@@ -39,9 +36,9 @@ type Dev interface {
 	Close() error
 }
 
-// NewDev creates a new Dev that operates on the network interface ifName, with
-// frameFilter used as a filter on incoming frames for Read(). If frameFilter
-// is nil, all frames will be returned.
-func NewDev(ifName string, frameFilter FrameFilter) (dev Dev, err error) {
-	return newDev(ifName, frameFilter)
+// NewDev creates a new Dev that operates on ifce, with frameFilter used as a
+// filter on incoming frames for Read(). If frameFilter is nil, all frames will
+// be returned from Read().
+func NewDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
+	return newDev(ifce, frameFilter)
 }

@@ -10,6 +10,7 @@ import (
 )
 
 var dev = flag.String("dev", "en0", "interface name")
+var ifce *net.Interface
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -17,37 +18,53 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewDev(t *testing.T) {
-	dev, err := NewDev(*dev, nil)
+	var (
+		ifce *net.Interface
+		err  error
+		d    Dev
+	)
+	if ifce, err = net.InterfaceByName(*dev); err != nil {
+		t.Fatalf("getting interface error: %v", err)
+	}
+	d, err = NewDev(ifce, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = dev.Close()
+	err = d.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestReadFrame(t *testing.T) {
-	dev, err := NewDev(*dev, nil)
+	var (
+		ifce *net.Interface
+		err  error
+		d    Dev
+	)
+	if ifce, err = net.InterfaceByName(*dev); err != nil {
+		t.Fatalf("getting interface error: %v", err)
+	}
+	d, err = NewDev(ifce, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var to ethernet.Frame
 	for i := 0; i < 16; i++ {
-		err = dev.Read(&to)
+		err = d.Read(&to)
 		t.Logf("got frame: from %v to %v (ethertype %v): % x\n", to.Source(), to.Destination(), to.Ethertype(), to.Payload())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	err = dev.Close()
+	err = d.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for i := 0; i < 1024; i++ {
-		err = dev.Read(&to)
+		err = d.Read(&to)
 		if err != nil {
 			break
 		}
@@ -58,7 +75,15 @@ func TestReadFrame(t *testing.T) {
 }
 
 func TestWriteFrame(t *testing.T) {
-	dev, err := NewDev(*dev, nil)
+	var (
+		ifce *net.Interface
+		err  error
+		d    Dev
+	)
+	if ifce, err = net.InterfaceByName(*dev); err != nil {
+		t.Fatalf("getting interface error: %v", err)
+	}
+	d, err = NewDev(ifce, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +99,7 @@ func TestWriteFrame(t *testing.T) {
 	w := func() (err error) {
 		(&frame).Prepare(dst, src, ethernet.NotTagged, ethernet.WSMP, 13)
 		copy(frame.Payload(), "Hello, World!")
-		err = dev.Write(frame)
+		err = d.Write(frame)
 		if err != nil {
 			return
 		}
@@ -86,7 +111,7 @@ func TestWriteFrame(t *testing.T) {
 		}
 	}
 
-	err = dev.Close()
+	err = d.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

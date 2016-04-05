@@ -1,6 +1,7 @@
 package ether
 
 import (
+	"bytes"
 	"net"
 
 	"github.com/songgao/packets/ethernet"
@@ -12,13 +13,5 @@ import (
 type FrameFilter func(frame ethernet.Frame) bool
 
 func equalMAC(a, b net.HardwareAddr) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, k := range a {
-		if b[i] != k {
-			return false
-		}
-	}
-	return true
+	return bytes.Equal([]byte(a), []byte(b))
 }

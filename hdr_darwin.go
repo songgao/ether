@@ -18,8 +18,4 @@ type bpfHdr struct {
 	hdrlen  uint16
 }
 
-func (tv *timeval) Unix() (sec int64, nsec int64) {
-	return int64(tv.Sec), int64(tv.Usec) * 1000
-}
-
 const wordLength = 4
