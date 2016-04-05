@@ -59,14 +59,11 @@ type bpfDev struct {
 	ifce   *net.Interface
 	fd     *os.File
 	filter FrameFilter
-	mtu    int
 
 	// bpf may return more than one frame per read() call
 	readBuf []byte
 	p       int
 	n       int
-
-	maxFrameSize int
 }
 
 // NewDev returns a handle to BPF device. ifName is the interface name to be
@@ -91,16 +88,8 @@ func newDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
 	if err != nil {
 		return
 	}
-	_, err = d.getMTU()
-	if err != nil {
-		return
-	}
 
 	d.readBuf = make([]byte, bufLen)
-
-	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
-	// up to 8 bytes
-	d.maxFrameSize = d.mtu + 22
 
 	dev = d
 
@@ -111,34 +100,8 @@ func (d *bpfDev) Interface() *net.Interface {
 	return d.ifce
 }
 
-func (d *bpfDev) GetMTU() int {
-	return d.mtu
-}
-
-func (d *bpfDev) getMTU() (int, error) {
-	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
-	if err != nil {
-		return -1, err
-	}
-	req := struct {
-		Name [0x10]byte
-		Mtu  int32
-		pad  [0x28 - 0x10 - 0x4]byte
-	}{}
-	copy(req.Name[:], d.ifce.Name)
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCGIFMTU), uintptr(unsafe.Pointer(&req)))
-	if errno != 0 {
-		err = errno
-		return -1, err
-	}
-	d.mtu = int(req.Mtu)
-	return d.mtu, err
-}
-
 func (d *bpfDev) Read(to *ethernet.Frame) (err error) {
-	if cap(*to) < d.maxFrameSize {
-		*to = make(ethernet.Frame, d.maxFrameSize)
-	}
+	to.Resize(d.ifce.MTU)
 	for {
 		for d.p < d.n {
 			hdr := (*bpfHdr)(unsafe.Pointer(&d.readBuf[d.p]))
@@ -161,9 +124,6 @@ func (d *bpfDev) Read(to *ethernet.Frame) (err error) {
 }
 
 func (d *bpfDev) Write(from ethernet.Frame) (err error) {
-	if len(from) > d.maxFrameSize {
-		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
-	}
 	var n int
 	n, err = d.fd.Write([]byte(from))
 	if err != nil {

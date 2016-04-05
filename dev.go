@@ -25,9 +25,6 @@ type Dev interface {
 	// Interface returns the *net.Interface that this Dev operates on.
 	Interface() *net.Interface
 
-	// GetMTU returns MAC layer MTU of the device.
-	GetMTU() int
-
 	// Close closes the device fd. After calling this, this Dev cannot read from
 	// or write into the device anymore. This means both Read() Write() should
 	// fail on AF_PACKET based systems. On BPF based systems, Write() should

@@ -111,6 +111,16 @@ func TestWriteFrame(t *testing.T) {
 		}
 	}
 
+	(&frame).Resize(d.Interface().MTU)
+	if err = d.Write(frame); err != nil {
+		t.Fatalf("writing frame with payload size equal to MTU fails: %v", err)
+	}
+
+	(&frame).Resize(d.Interface().MTU + 1)
+	if nil == d.Write(frame) {
+		t.Fatalf("writing frame with payload larger than MTU does not fail")
+	}
+
 	err = d.Close()
 	if err != nil {
 		t.Fatal(err)

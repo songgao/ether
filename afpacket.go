@@ -3,9 +3,7 @@
 package ether
 
 import (
-	"fmt"
 	"net"
-	"syscall"
 	"unsafe"
 
 	"github.com/songgao/packets/ethernet"
@@ -28,13 +26,10 @@ type afpacket struct {
 	ifce   *net.Interface
 	filter FrameFilter
 
-	fd  int
-	mtu int
+	fd int
 
 	// for outgoing frames
 	sockaddrLL *unix.SockaddrLinklayer
-
-	maxFrameSize int
 }
 
 func newDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
@@ -47,26 +42,9 @@ func newDev(ifce *net.Interface, frameFilter FrameFilter) (dev Dev, err error) {
 		return
 	}
 
-	// get MTU
-	ifmtuSt := struct {
-		ifrName [unix.IFNAMSIZ]byte
-		ifrMTU  uint32
-	}{}
-	copy(ifmtuSt.ifrName[:], []byte(ifce.Name))
-	_, _, errno := unix.Syscall(syscall.SYS_IOCTL, uintptr(d.fd), uintptr(syscall.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifmtuSt)))
-	if errno != 0 {
-		err = errno
-		return
-	}
-	d.mtu = int(ifmtuSt.ifrMTU)
-
 	d.sockaddrLL = new(unix.SockaddrLinklayer)
 	d.sockaddrLL.Ifindex = ifce.Index
 	d.sockaddrLL.Halen = 6
-
-	// 6 bytes src, 6 bytes dst, 2 bytes length, plus 802.11q which can be can be
-	// up to 8 bytes
-	d.maxFrameSize = d.mtu + 22
 
 	dev = d
 	return
@@ -76,18 +54,11 @@ func (d *afpacket) Interface() *net.Interface {
 	return d.ifce
 }
 
-func (d *afpacket) GetMTU() int {
-	return d.mtu
-}
-
 func (d *afpacket) Close() error {
 	return unix.Close(d.fd)
 }
 
 func (d *afpacket) Write(from ethernet.Frame) (err error) {
-	if len(from) > d.maxFrameSize {
-		err = fmt.Errorf("frame too large (%d); MTU: (%d)", len(from), d.mtu)
-	}
 	copy(d.sockaddrLL.Addr[:6], []byte(from.Destination()))
 	err = unix.Sendto(d.fd, []byte(from), 0, d.sockaddrLL)
 	if err != nil {
@@ -97,9 +68,7 @@ func (d *afpacket) Write(from ethernet.Frame) (err error) {
 }
 
 func (d *afpacket) Read(to *ethernet.Frame) (err error) {
-	if cap(*to) < d.maxFrameSize {
-		*to = make(ethernet.Frame, d.maxFrameSize)
-	}
+	to.Resize(d.ifce.MTU)
 	for {
 		*to = (*to)[:cap(*to)]
 		var n int
