@@ -8,18 +8,16 @@ import (
 
 // Dev represents a network interface.
 type Dev interface {
-	// Read reads a ethernet frame into *to. A sufficiently large (MTU + 22
-	// bytes) buffer is allocated and assigned to *to if needed. As a result,
-	// non-nil to pointed to a nil *to would work. If read is successful, *to is
-	// resized to properly reflect the frame length.
+	// Read reads a ethernet frame into *to. *to is expanded or re-allocated if
+	// needed. As a result, a non-nil to pointed to a nil *to would work. If read
+	// is successful, *to is resized to properly reflect the frame length.
 	Read(to *ethernet.Frame) (err error)
 
 	// Write writes a ethernet frame into the device. from should include
 	// ethernet frame header as well as payload, but not ethernet CRC. See
-	// FillFrameHeader() for filling frame headers. Since ethernet frames don't
-	// have a length field, caller needs to make sure from has proper length.
-	// That is, the slice should be resized to cover exact number of bytes of the
-	// frame.
+	// ethernet.Frame document for constructing the frame. Caller needs to make
+	// sure from has proper length. That is, the slice should be resized to
+	// cover exact number of bytes of the frame.
 	Write(from ethernet.Frame) error
 
 	// Interface returns the *net.Interface that this Dev operates on.
@@ -28,8 +26,8 @@ type Dev interface {
 	// Close closes the device fd. After calling this, this Dev cannot read from
 	// or write into the device anymore. This means both Read() Write() should
 	// fail on AF_PACKET based systems. On BPF based systems, Write() should
-	// fail, and Read() can read until all cached frames are consumed before
-	// failing.
+	// fail, and Read() can read until all frames in read buffer are consumed
+	// before failing.
 	Close() error
 }
 
